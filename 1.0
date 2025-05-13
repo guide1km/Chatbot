@@ -1,0 +1,66 @@
+from flask import Flask, request
+import requests
+
+app = Flask(__name__)
+
+# Өөрийн VERIFY TOKEN болон PAGE TOKEN-г энд оруулна
+VERIFY_TOKEN = "my_secret_token"
+PAGE_ACCESS_TOKEN = "your_page_access_token"
+
+# Зураг илгээх функц
+def send_image(recipient_id, image_url):
+    url = "https://graph.facebook.com/v17.0/me/messages"
+    payload = {
+        "recipient": {"id": recipient_id},
+        "message": {
+            "attachment": {
+                "type": "image",
+                "payload": {
+                    "url": image_url,
+                    "is_reusable": True
+                }
+            }
+        }
+    }
+    params = {"access_token": PAGE_ACCESS_TOKEN}
+    requests.post(url, params=params, json=payload)
+
+# Текст илгээх функц
+def send_message(recipient_id, text):
+    url = "https://graph.facebook.com/v17.0/me/messages"
+    payload = {
+        "recipient": {"id": recipient_id},
+        "message": {"text": text}
+    }
+    params = {"access_token": PAGE_ACCESS_TOKEN}
+    requests.post(url, params=params, json=payload)
+
+@app.route("/", methods=["GET"])
+def index():
+    return "AI chatbot is running!"
+
+@app.route("/webhook", methods=["GET", "POST"])
+def webhook():
+    if request.method == "GET":
+        if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+            return request.args.get("hub.challenge")
+        return "Invalid verification token", 403
+
+    elif request.method == "POST":
+        data = request.get_json()
+        for entry in data["entry"]:
+            for event in entry["messaging"]:
+                sender_id = event["sender"]["id"]
+
+                if "message" in event:
+                    if "text" in event["message"]:
+                        user_text = event["message"]["text"]
+                        # Хариу текст илгээнэ
+                        send_message(sender_id, f"Та бичсэн: {user_text}")
+                        # Хариу зураг илгээнэ
+                        send_image(sender_id, "https://your-image-url.com/sample.jpg")
+
+        return "ok", 200
+
+if __name__ == "__main__":
+    app.run()
